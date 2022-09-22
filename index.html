@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="shortcut icon" href="image/logo.png">
+    <link rel="stylesheet" href="css/app.css">
+    <link href='https://fonts.googleapis.com/css?family=Press Start 2P' rel='stylesheet'>
+    <title>Demon Slayer</title>
+    <style>
+        body {
+            justify-content: center;
+            background-color: #0d0d0d !important;
+        }
+
+        #loading {
+            color: white;
+            font-size: 32px;
+            padding-top: 10vh;
+            text-align: center;
+            font-family: 'Press Start 2p';
+        }
+
+        #start-screen {
+            color: white;
+            padding-top: 5vh;
+            font-size: 25pt;
+            font-family: 'Press Start 2p';
+            text-align: center;
+        }
+
+        .start-btn {
+            width: 400px;
+            text-align: center;
+            display: inline-block;
+            margin: 20px;
+            font-weight: bold;
+            padding: 10px 0 10px 10px;
+            background-color: lightgray;
+            text-shadow: -1px -1px black, 1px 1px white;
+            color: gray;
+            -webkit-border-radius: 7px;
+            -moz-border-radius: 7px;
+            -o-border-radius: 7px;
+            border-radius: 7px;
+            box-shadow: 0 .2em gray;
+        }
+
+        .start-btn:hover {
+            opacity: 0.5;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <!--Vue App-->
+    <div id="app" v-cloak>
+        <loading-screen v-if="isLoading"></loading-screen>
+        <div id="start-screen" v-else="!isLoading">
+            <img src="image/logo.png" alt="logo">
+            <div>
+                <span class='start-btn' onclick="location='ranking.html'">RANKING</span>
+                <span class='start-btn' onclick="location='player.html'">START</span>
+                <span class='start-btn' onclick="location='setGame.html'">DIFFICULTY</span>
+            </div>
+
+        </div>
+    </div>
+
+
+    <!--Script-->
+    <script src="js/vue.js"></script>
+    <script src="js/vue-router.js"></script>
+    <script src="js/vuefire.js"></script>
+    <script src="js/jquery.slim.js"></script>
+    <script src="js/app.js"></script>
+
+    <script>
+        //=============
+        //Vue Component
+        //=============
+        Vue.component('loading-screen', {
+            template: '<div id="loading"><img src ="image/index-start.gif" alt="index-start"><br>Loading...</div>'
+        })
+
+        new Vue({
+            el: '#app',
+            data: {
+                isLoading: true,
+            },
+            mounted() {
+                setTimeout(() => {
+                    this.isLoading = false
+                }, 3000)
+            }
+        })
+
+
+    </script>
+</body>
+
+</html>

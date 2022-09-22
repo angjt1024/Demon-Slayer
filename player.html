@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="shortcut icon" href="image/logo.png">
+    <link rel="stylesheet" href="css/app.css">
+    <link href='https://fonts.googleapis.com/css?family=Press Start 2P' rel='stylesheet'>
+    <title>Demon Slayer</title>
+    <style>
+        * {
+            font-size: 14px;
+        }
+
+        body {
+            background-color: #0d0d0d;
+            margin-top: 50px;
+            font-family: 'Press Start 2p';
+        }
+
+        div.card {
+            margin: auto;
+            width: 400px;
+            height: 400px;
+            background-color: white;
+            border-radius: 2px;
+            box-shadow: 0px 3px 3px silver;
+            padding: 25px;
+        }
+
+        h1 {
+            margin: 0 0 20px 0;
+            font-weight: bold;
+            color: #483D8B;
+            font-size: 25px;
+        }
+
+        input {
+            border: 2px solid silver;
+            width: 215px;
+            font-family: 'Press Start 2p';
+        }
+
+        .character {
+            background-color: lightpink;
+            border: 3px solid rgb(153, 153, 153);
+            width: 215px;
+            height: 205px;
+            object-fit: cover;
+        }
+
+        .button {
+            background-color: #4CAF50;
+            /* Green */
+            border: none;
+            color: white;
+            padding: 5px 10px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 20px;
+            font-family: 'Press Start 2p';
+            margin: 4px 2px;
+            cursor: pointer;
+            transition-duration: 0.4s;
+        }
+
+        select {
+            font-family: 'Press Start 2p';
+            font-size: 12px;
+            padding: 5px;
+        }
+
+        option {
+            font-size: 12px;
+        }
+        .button:hover {
+            box-shadow: 0 12px 16px 0 rgba(0, 0, 0, 0.24), 0 17px 50px 0 rgba(0, 0, 0, 0.19);
+
+        }
+
+        .rstbutton {
+            background-color: #f44336;
+        }
+        .flex{
+            display: flex;
+        }
+        .w-50{
+            width: 50%;
+        }
+        .bg-transparent{
+            background-color: transparent;
+        }
+        .flex-around{
+            display:flex;
+            justify-content: space-around;
+        }
+        .relative{
+            position: relative;
+        }
+        .bottom{
+            position: absolute;
+            bottom: 0;
+        }
+        .h-100{
+            height: 100%;
+        }
+        .w-100{
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!--Vue App-->
+    <main id="app">
+        <transition name="slide" mode="out-in" appear>
+            <div class="card">
+                <div class="relative h-100">
+                    <h1>Player Setting</h1>
+                    <form class="form" @submit.prevent="submit">
+                        <label>Player name</label>
+                        <input v-model.trim="name" required maxlength="30" v-focus ref="name">
+    
+                        <br>
+                        <img class="character" :src="image || blank">
+    
+                        <label>Character</label>
+                        <select v-model="character" required>
+                            <option value="">Choose Character</option>
+                            <option value="tanjiro">Tanjiro</option>
+                            <option value="nezuko">Nezuko</option>
+                            <option value="zenitsu">Zenitsu</option>
+                            <option value="inosuke">Inozuke</option>
+                        </select>    
+                        <div class="formbtn bottom flex-around w-100">
+                            <button class="button rstbutton" @click.prevent="reset">Reset</button>
+                            <button class="button">Create</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </transition>
+    </main>
+
+
+    <!--Script-->
+    <script src="https://www.gstatic.com/firebasejs/7.17.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.17.1/firebase-firestore.js"></script>
+    <script src="js/vue.js"></script>
+    <script src="js/vue-router.js"></script>
+    <script src="js/vuefire.js"></script>
+    <script src="js/jquery.slim.js"></script>
+    <script src="js/app.js"></script>
+
+    <script>
+        //======================
+        //Firebase Setup
+        //=======================
+        firebase.initializeApp({
+            //projectId: 'demon-slayer-222d6'
+            projectId: 'demon-slayer-916f8'
+
+        });
+
+        const ref = firebase.firestore().collection('players');
+
+        //=============
+        //Vue Component
+        //=============
+        const app = new Vue({
+            el: '#app',
+            data: () => ({
+                name: '',
+                character: '',
+                score: 0,
+                step: 0,
+                StereoPannerNode: 0,
+                time: 0,
+                blank: 'image/unknown.gif',
+                location1: 'image/',
+                location2: '-left.gif',
+                image: ''
+            }),
+
+            watch: {
+                character: function (val) {
+                    if (val != '') {
+                        this.image = this.location1 + val + this.location2
+                    }
+                    else {
+                        this.image = 'image/unknown.gif'
+                    }
+
+                }
+            },
+
+            methods: {
+                submit() {
+                    ref.add({
+                        name: this.name,
+                        character: this.character,
+                        score: this.score,
+                        step: this.step,
+                        time: this.time
+                    }).then(doc => {
+                        let id = doc.id;
+                        location = 'game.html?id='+ id;
+                        this.name = '';
+                        this.character = '';
+                    })
+                        .catch((error) => {
+                            console.error("Error while adding document: ", error);
+                        });
+                },
+
+                reset() {
+                    this.name = '';
+                    this.character = '';
+                    this.$refs.name.focus();
+                }
+
+            }
+
+        });
+
+    </script>
+</body>
+
+</html>

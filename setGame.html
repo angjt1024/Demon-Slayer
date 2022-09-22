@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="shortcut icon" href="image/logo.png">
+    <link rel="stylesheet" href="css/app.css">
+    <link href='https://fonts.googleapis.com/css?family=Press Start 2P' rel='stylesheet'>
+    <title>Demon Slayer</title>
+    <style>
+        body {
+            margin: 0;
+            height: 100vh;
+            display: grid;
+            background-color: #232323;
+            font-family: 'Press Start 2p';
+            grid-template-rows: auto 2fr auto;
+        }
+
+        main {
+            display: grid;
+            gap: 10px;
+            grid-template-rows: auto 1fr;
+            grid-template-columns: 250px 1fr;
+            grid-template-areas: 'panel map'
+                'items map';
+            overflow: auto;
+        }
+
+        #panel {
+            width: auto;
+            grid-area: panel;
+            color: white;
+        }
+
+        #map {
+            grid-area: map;
+            border: 1px solid #333;
+        }
+
+        input[type=color] {
+            width: 240px;
+            height: 25px;
+        }
+
+        #items {
+            grid-area: items;
+            overflow-y: scroll;
+        }
+
+        .item {
+            border: 1px solid #666;
+            padding: 5px;
+            margin-bottom: 5px;
+            cursor: pointer;
+            position: relative;
+            border-radius: 5px;
+        }
+
+        .item:hover {
+            background-color: #ccc;
+        }
+
+        .item img {
+            border: 1px solid #666;
+            width: 37px;
+            height: 37px;
+            float: left;
+            margin-right: 2px;
+        }
+
+        .item div {
+            background-color: #5055CB;
+            color: #fff;
+            padding: 2px 4px;
+            border-radius: 2px;
+            width: 150px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .item small {
+            display: block;
+        }
+
+        .item input {
+            position: absolute;
+            top: 50%;
+            right: 4px;
+            transform: translate(0, -50%);
+            display: none;
+        }
+
+        .item:hover input {
+            display: block;
+        }
+
+        #panel button {
+            width: 240px;
+            display: inline-block;
+            font-family: 'Press Start 2p';
+            margin: 5px;
+            font-weight: bold;
+            padding: 10px 0 10px 10px;
+            background-color: gray;
+            text-shadow: -1px -1px black, 1px 1px white;
+            color: white;
+            -webkit-border-radius: 7px;
+            -moz-border-radius: 7px;
+            -o-border-radius: 7px;
+            border-radius: 7px;
+            box-shadow: 0 .2em gray;
+        }
+
+        #panel button:hover {
+            opacity: 0.5;
+            cursor: pointer;
+        }
+
+        .radio img {
+            width: 25px;
+            height: 25px;
+            margin: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <a href="index.html"><img src='/image/logo.png' width="60px" height="60px"></a>
+        <h1><a href="index.html">Demon Slayer</a></h1>
+    </header>
+
+    <!-- Vue -->
+    <main id="app" v-cloak>
+        <div id="panel">
+            <div>
+                <h3>Set Difficulty</h3>
+                <input type="color" v-model="color" list>
+                <br>
+                <button @click="clearRec">Remove Map</button>
+                <button @click="clear">Remove {{ markers.length }} marker(s)</button>
+                <br>
+                <br>
+
+                <label style="font-size: 25px;">Element</label>
+                <div class="radio" v-for="(val, key) in list">
+                    <input type="radio" name="radio" :value="val" v-model="selected" :id="val" @click="uncheck(val)"
+                        :disabled="!rec">
+                    <label style="font-size: 26px;" :for="val">{{ val }}
+                        <img :src=`image/${val}.gif`>
+                    </label>
+                </div>
+
+
+            </div>
+        </div>
+
+        <div id="items">
+            <div class="item" v-for="m of markers" @click="panTo(m)">
+                <img :src="m.image">
+                <div>
+                    {{ m.label }}
+                </div>
+                <small style="color:white">
+                    {{ m.position.lat() | number(6) }},
+                    {{ m.position.lng() | number(6) }}
+                </small>
+                <input type="image" src="image/remove.png" @click.stop="remove(m)">
+            </div>
+        </div>
+
+
+
+        <div id="map"></div>
+    </main>
+
+    <script src="https://www.gstatic.com/firebasejs/7.17.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.17.1/firebase-firestore.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=&libraries=geometry,drawing"></script>
+    <script src="js/jquery.slim.js"></script>
+    <script src="js/vue.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        // ====================================================================
+        // Firebase
+        // ====================================================================
+
+        firebase.initializeApp({
+            //  Firebase project id
+            projectId: 'demon-slayer-916f8'
+        });
+
+        //  Firestore collection ''
+        const ref = firebase.firestore().collection('map');
+        const ref2 = firebase.firestore().collection('markers');
+
+        // ====================================================================
+        // Vue
+        // ====================================================================
+
+        const vm = new Vue({
+            el: '#app',
+            data: {
+                rec: null,
+                color: '#ff0000',
+                markers: [],
+                list: ['coins', 'demon', 'heart'],
+                selected: '',
+                image: '',
+                label: '',
+            },
+            methods: {
+                clearRec() {
+                    ref.doc('data').delete();
+                    vm.markers.forEach(m => ref2.doc(m.id).delete());
+                    mgr.setDrawingMode('');
+                    this.selected = false;
+                },
+                clear() {
+                    vm.markers.forEach(m => ref2.doc(m.id).delete());
+                },
+                uncheck: function (val) {
+                    if (val == this.selected) {
+                        this.selected = false;
+                        mgr.setDrawingMode('');
+
+                    }
+                    else {
+                        mgr.setDrawingMode('marker');
+                        switch (val) {
+                            case 'coins': this.label = val, this.image = 'image/coins.gif'; break;
+                            case 'demon': this.label = val, this.image = 'image/demon.gif'; break;
+                            case 'heart': this.label = val, this.image = 'image/heart.gif'; break;
+                        }
+
+                    }
+                },
+                remove(m) {
+                    //  Firebase --> DELETE
+                    ref2.doc(m.id).delete();
+                },
+                panTo(m) {
+                    map.panTo(m.getPosition());
+                    m.setAnimation(gm.Animation.BOUNCE);
+                    setTimeout(() => m.setAnimation(null), 3000);
+                },
+            },
+            watch: {
+                color() {
+                    //  Firebase --> UPDATE (color)
+                    let o = vm.rec.getEditable();
+                    if (o) {
+                        //o.setOptions({  strokeColor: vm.color, fillColor: vm.color});
+                        ref.doc('data').update({ color: vm.color });
+                        vm.rec.strokeColor = vm.color;
+                        vm.rec.fillColor = vm.color;
+                    }
+
+                }
+            },
+            created() {
+                ref.onSnapshot(snap => {
+                    snap.docChanges().forEach(change => {
+
+                        const { type, doc } = change;
+
+                        if (type == 'added') {
+                            let data = doc.data();
+                            addRectangles(data.bounds);
+                            let o = vm.rec;
+                            if (o) {
+                                o.setOptions({
+                                    strokeColor: data.color,
+                                    fillColor: data.color
+                                });
+                                // alert('Loaded');               
+                                map.panTo(vm.rec.getBounds().getCenter());
+                            }
+                        }
+
+
+                        //  Update circle (center, radius, color)
+                        if (type == 'modified') {
+                            let o = vm.rec;
+                            if (o) {
+                                let data = doc.data();
+                                o.setOptions({
+                                    bounds: data.bounds,
+                                    strokeColor: data.color,
+                                    fillColor: data.color
+                                });
+                            }
+                        }
+
+                        if (type == 'removed') {
+                            vm.rec.setMap(null);
+                            vm.rec = null;
+                        }
+
+
+                    });
+                });
+
+                ref2.onSnapshot(snap => {
+                    snap.docChanges().forEach(change => {
+                        const { type, doc } = change;
+
+                        //  Record added --> add marker
+                        if (type == 'added') {
+                            addMarker(doc.id, doc.data());
+                        }
+
+                        //  Record removed --> remove marker
+                        if (type == 'removed') {
+                            let m = vm.markers.find(m => m.id == doc.id);
+                            m.setMap(null);
+                            let i = vm.markers.indexOf(m);
+                            vm.markers.splice(i, 1);
+
+                        }
+
+                        //  Record modified --> modify marker
+                        if (type == 'modified') {
+                            let m = vm.markers.find(m => m.id == doc.id);
+                            let data = doc.data();
+                            m.setOptions({
+                                position: data.position,
+                                label: data.label,
+                                image: data.image
+                            });
+
+                        }
+
+
+                    });
+                })
+            }
+        });
+
+        // ====================================================================
+        // Google Maps
+        // ====================================================================
+
+        const gm = google.maps;
+
+        const center = { lat: 3.215000, lng: 101.730000 };
+
+        const map = new gm.Map($('#map')[0], {
+            center,
+            zoom: 17,
+            disableDefaultUI: true,
+            disableDoubleClickZoom: true,
+            clickableIcons: false,
+        });
+
+        const mgr = new gm.drawing.DrawingManager({
+            map,
+            drawingControlOptions: {
+                drawingModes: ['rectangle'],
+                // drawingModes: ['rectangle', 'marker'],
+            },
+            // drawingMode: 'rectangle',
+            markerOptions: {
+                animation: gm.Animation.DROP,
+                draggable: true
+            }
+        });
+
+
+        // Drawing manager events
+        mgr.addListener('rectanglecomplete', o => {
+            // Remove draft
+            o.setMap(null);
+
+            //  Firebase --> INSERT (center, radius, color)
+            addRectangles(o.getBounds());
+
+            ref.doc('data').set({
+                bounds: vm.rec.getBounds().toJSON(),
+                color: vm.color
+            });
+        })
+
+        // Function to add circle
+        function addRectangles(bound) {
+
+            if (vm.rec) {
+                vm.rec.setMap(null);
+            }
+
+            vm.rec = new gm.Rectangle({
+                map,
+                // NOTE: Set draggable to false --> more efficient
+                draggable: false,
+                bounds: bound,
+                strokeColor: vm.color,
+                fillColor: vm.color
+            });
+
+
+            vm.rec.addListener('click', e => {
+                //  Make only this circle editable
+                //          Update color input
+                vm.rec.setEditable(true);
+                vm.rec.setDraggable(true);
+                vm.color = vm.rec.strokeColor;
+
+            });
+
+            vm.rec.addListener('bounds_changed', e => {
+                //  Firebase --> UPDATE (center)
+                // ref.doc('data').update({ bounds: vm.rec.getBounds().toJSON() });
+                checkMarker();
+            });
+
+            vm.rec.addListener('dragend', e => {
+                ref.doc('data').update({ bounds: vm.rec.getBounds().toJSON() });
+            });
+
+
+
+        }
+
+        map.addListener('click', e => {
+            //  Make all circles none editable
+            //           Reset color input
+            if (vm.rec) { vm.rec.setEditable(false); }
+            vm.color = '#ff0000';
+        });
+
+        mgr.addListener('markercomplete', m => {
+            //  Test if marker is inside polygon
+            let inside = vm.rec.getBounds().contains(m.getPosition());
+            m.setMap(null);
+
+            //  If not inside, reject marker and return
+            if (!inside) {
+                return;
+            }
+
+            ref2.doc().set({
+                position: m.getPosition().toJSON(),
+                label: vm.label,
+                image: vm.image
+            });
+
+
+        });
+
+        function addMarker(id, data) {
+            let m = new gm.Marker({
+                map,
+                animation: gm.Animation.DROP,
+                draggable: true,
+                // : Add options --> id, position, label and image
+                id, //Custom Property 
+                position: data.position,
+                label: data.label,
+                icon: { url: data.image, scaledSize: new gm.Size(50, 50) },
+                image: data.image // Custom Property
+            });
+
+            vm.markers.push(m);
+
+            let inside = vm.rec.getBounds().contains(m.getPosition());
+            if (!inside) {
+                return;
+            }
+
+            m.addListener('dblclick', e => {
+                // : Firebase --> DELETE
+                ref2.doc(m.id).delete();
+            });
+
+            m.pos = m.getPosition();
+            m.addListener('drag', () => update(m));
+            m.addListener('dragend', () => update2(m));
+
+        }
+
+        function update(m) {
+            //  Ensure marker is always inside polygon
+            let inside = vm.rec.getBounds().contains(m.getPosition());
+
+            if (inside) {
+                m.pos = m.getPosition();
+            }
+            else {
+                m.setPosition(m.pos);
+            }
+
+        }
+
+        function update2(m) {
+            //  Ensure marker is always inside polygon
+            let inside = vm.rec.getBounds().contains(m.getPosition());
+
+            if (inside) {
+                m.pos = m.getPosition();
+                ref2.doc(m.id).update({
+                    position: m.getPosition().toJSON()
+                });
+            }
+            else {
+                m.setPosition(m.pos);
+                ref2.doc(m.id).update({
+                    position: m.pos.toJSON()
+                });
+            }
+
+        }
+
+        function checkMarker() {
+            vm.markers.forEach(m => {
+                let inside = vm.rec.getBounds().contains(m.getPosition());
+                if (!inside) {
+                    ref2.doc(m.id).delete()
+                }
+            }
+            );
+        }
+
+    </script>
+</body>
+
+</html>

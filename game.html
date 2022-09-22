@@ -1,0 +1,539 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="shortcut icon" href="image/logo.png">
+    <link rel="stylesheet" href="css/app.css">
+    <link href='https://fonts.googleapis.com/css?family=Press Start 2P' rel='stylesheet'>
+    <title>Demon Slayer</title>
+    <style>
+        body {
+            background-color: #232323;
+        }
+
+        main {
+            display: grid;
+        }
+
+        #map {
+            border: 1px solid #333;
+        }
+
+        .panel {
+            background-color: #000;
+            color: #fff;
+            border: 1px solid #999;
+            border-radius: 5px;
+            margin: 5px;
+            padding: 5px;
+            font-size: 13px;
+            font-family: 'Press Start 2p';
+        }
+
+        .panel img {
+            width: 24px;
+        }
+
+        #status img {
+            width: 50px;
+        }
+
+        .panel * {
+            vertical-align: middle;
+        }
+
+        #circle {
+            font-size: 15px;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <a href="index.html"><img src='/image/logo.png' width="60px" height="60px"></a>
+        <h1><a href="index.html">Demon Slayer</a></h1>
+    </header>
+
+    <nav>
+    </nav>
+
+    <!-- Vue ----------------------------------------------------------------->
+    <main id="app" v-cloak>
+        <div id="map"></div>
+
+        <div hidden>
+            <div id="panel" class="panel">
+                <div v-for="m of demons" style="cursor: pointer;" @click="panTo(m)">
+                    <img :src="m.icon.url">
+                    <span v-if="m.found">Killed</span>
+                    <span v-else>{{ m.distance | number(0) }} meters</span>
+                </div>
+            </div>
+
+            <div id="status" class="panel">
+                <div>
+                    <img :src="image2">
+                    <div>
+                        <span>Character : {{ character }}</span>
+                    </div>
+                    <br>
+
+                    <div>
+                        <span>Player Name : {{ name }}</span>
+                    </div>
+                    <div>
+                        <span>HP : {{ hp }}%</span>
+                    </div>
+                    <br>
+
+                    <div>
+                        <span>Level : {{ level }}</span>
+                    </div>
+                    <div>
+                        <span>EXP : {{ coins }} / 50</span>
+                    </div>
+                    <br>
+                    <div>
+                        <span>Score : {{ score }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="circle" class="panel">
+                <label>
+                    {{ msg }}
+                </label>
+            </div>
+
+            <div id="mkcoin" class="panel">
+                {{ result.length }} item(s) within circle
+                <div style="cursor: pointer;" class="item" v-for="r of result" @click="panTo(r)">
+                    <img :src="r.url">
+                    <span>{{ r.label }}</span>
+                    <span>{{ r.distance | number(0) }} meters</span>
+                </div>
+            </div>
+
+            <div hidden>
+                <div id="info">
+                    <b>Haha you can't defeat me!</b><br>
+                </div>
+            </div>
+
+
+        </div>
+    </main>
+    <script src="https://www.gstatic.com/firebasejs/7.17.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.17.1/firebase-firestore.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=&libraries=geometry"></script>
+    <script src="js/jquery.slim.js"></script>
+    <script src="js/vue.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+
+        //======================
+        //Firebase Setup
+        //=======================
+        firebase.initializeApp({
+            //projectId: 'demon-slayer-222d6'
+            projectId: 'demon-slayer-916f8'
+        });
+
+        const ref = firebase.firestore().collection('players');
+        const ref2 = firebase.firestore().collection('map');
+        const ref3 = firebase.firestore().collection('markers');
+
+        // ===================
+        // Vue Component
+        // ===================
+
+        //  Audio files
+        const audio1 = new Audio('audio/hit.wav');
+        const audio2 = new Audio('audio/victory.wav');
+        const coinsound = new Audio('audio/coins.mp3');
+        const over = new Audio('audio/over4.wav');
+        const lvlup = new Audio('audio/bonus.wav');
+        const health = new Audio('audio/health.wav');
+        const kill = new Audio('audio/PUNCH.mp3');
+
+        const vm = new Vue({
+            el: '#app',
+            data: {
+                markers: [],
+                demons: [],
+                win: false,
+                step: 0,
+                id: '',
+                name: '',
+                character: '',
+                image1: '',
+                image2: '',
+                score: 0,
+                hp: 100,
+                coins: 0,
+                level: 0,
+                time: new Date().getTime(),
+                radius: 200,
+                msg: '',
+                result: []
+            },
+            methods: {
+                move(x, y) {
+                    //  Pan the map (move the player)
+                    //          Prevent moving out of bounds
+                    let c1 = map.getCenter();
+                    map.panBy(x * 10, y * 10);
+                    let c2 = map.getCenter();
+
+                    if (bounds.contains(c2)) {
+                        player.setPosition(c2);
+                    }
+                    else {
+                        map.setCenter(c1);
+                    }
+
+                    origin = player;
+                    update();
+
+
+                    //  Update marker's distance and visibility
+                    for (let m of vm.markers.filter(m => !m.found)) {
+                        let a = player.getPosition();
+                        let b = m.getPosition();
+                        m.distance = gm.geometry.spherical.computeDistanceBetween(a, b);
+
+                        if (m.distance < 30) {
+                            if (m.name == 'coins') {
+                                vm.coins += 10;
+                                vm.score += 5;
+                                coinsound.play();
+                                m.found = true;
+                                m.setVisible(false);
+                            }
+                            if (m.name == 'heart') {
+                                vm.hp += 10;
+                                if (vm.hp > 100) {
+                                    vm.hp = 100;
+                                }
+                                health.play();
+                                m.found = true;
+                                m.setVisible(false);
+                                message("HP+10!", 3000);
+                            }
+                        }
+
+                    }
+
+                    for (let m of vm.demons.filter(m => !m.found)) {
+                        let a = player.getPosition();
+                        let b = m.getPosition();
+                        m.distance = gm.geometry.spherical.computeDistanceBetween(a, b);
+
+                        if (m.distance < 30) {
+                            if (vm.level < 1) {
+                                audio1.play();
+                                vm.hp -= 10;
+
+                                if (vm.hp < 1) {
+                                    vm.hp = 0;
+                                    over.play();
+                                    vm.win = true;
+                                    setTimeout(() => {
+                                        if (confirm("Game Over! You are Dead! \nTry Again?")) {
+                                            location = location;
+                                        } else {
+                                            location = 'index.html';
+                                        }
+                                    }, 100);
+
+                                }
+                                else {
+                                    if (vm.hp == 10) {
+                                        alert('WARNIG!\nYou only left 10 HP')
+                                    }
+                                    info.open(map, m);
+                                    setTimeout(() => {
+                                        info.close();
+                                    }, 3000);
+                                    vm.move(-x * 4, -y * 4)
+                                    message("HP-10!\nMust be at least level 1 to kill demons", 3000);
+                                }
+
+                            }
+                            else {
+                                m.found = true;
+                                m.setVisible(false);
+                                kill.play();
+                                vm.score += 10;
+                                vm.move(x * 2, y * 2)
+                            }
+
+                        }
+
+                    }
+
+                    if (vm.coins > 49) {
+                        vm.coins = 0
+                        vm.level += 1;
+                        vm.radius = vm.radius * 1.75
+                        message(`Level UP to ${vm.level}! Now go and fight the demon!`, 3000);
+                        lvlup.play();
+                    }
+
+                    if (vm.markers.length < 1 || vm.demons.length < 1) {
+                        alert('No markers data. Set the game at SetGame first');
+                        location = 'setGame.html';
+                    }
+
+                    //  If all game win, alert
+                    if (vm.demons.every(m => m.found) && vm.win == false) {
+                        vm.win = true;
+                        vm.time = parseFloat(((new Date().getTime() - vm.time) / 1000).toFixed(2));
+                        ref.doc(this.id).update({ score: vm.score, step: vm.step, time: vm.time });
+                        setTimeout(() => {
+                            alert(`You Won !!!\nScore : ${vm.score}\nStep   : ${vm.step} step\nTime  : ${vm.time} sec`);
+                            location = 'ranking.html?id=' + vm.id;
+                        }, 1000);
+                        audio2.play();
+
+                    }
+
+                },
+                panTo(r) {
+                    map.panTo(r.position);
+                    setTimeout(() => {
+                        map.panTo(player.position);
+                    }, 500);
+
+                },
+            },
+            mounted() {
+
+                //  Handle keydown event, call vm.move(x, y) accordingly
+                //  e.key or e.code = ArrowLeft, ArrowRight, ArrowUp, ArrowDown
+                $(document).keydown(e => {
+                    if (vm.win) return;
+
+                    vm.step++;
+
+                    switch (e.key) {
+                        case 'ArrowLeft': vm.move(-1, 0); player.setIcon({ url: this.image1, scaledSize: new gm.Size(64, 64) }); break;
+                        case 'ArrowRight': vm.move(+1, 0); player.setIcon({ url: this.image2, scaledSize: new gm.Size(64, 64) }); break;
+                        case 'ArrowUp': vm.move(0, -1); break;
+                        case 'ArrowDown': vm.move(0, +1); break;
+                    }
+                });
+
+            },
+
+            created() {
+                //Get param id
+                this.id = new URL(location).searchParams.get('id');
+
+                if (this.id == null) {
+                    location = "player.html";
+                    return;
+                }
+
+                let data = null;
+
+                f = ref.where(firebase.firestore.FieldPath.documentId(), '==', this.id)
+                    .get()
+                    .then((querySnapshot) => {
+                        querySnapshot.forEach((doc) => {
+                            data = doc.data();
+
+                            this.name = data.name;
+                            this.character = data.character;
+
+                            this.image1 = 'image/' + this.character + '-left.gif';
+                            this.image2 = 'image/' + this.character + '-right.gif';
+                            player.setIcon({ url: this.image1, scaledSize: new gm.Size(64, 64) })
+                        });
+                        if (data == null) {
+                            location = "player.html";
+                            return;
+                        }
+                    })
+                    .catch((error) => {
+                        console.log("Error getting documents: ", error);
+                    });
+
+                //Rectangle
+                ref2.doc('data').get().then(doc => {
+                    const data = doc.data();
+
+                    if (data) {
+                        addRectangles(data);
+                    }
+                    else {
+                        alert('No map data. Set the map at SetGame first');
+                        location = 'setGame.html';
+                    }
+                });
+
+
+                //Markers
+                ref3.onSnapshot(snap => {
+                    snap.docChanges().forEach(change => {
+                        const { type, doc } = change;
+
+                        //  Record added --> add marker
+                        if (type == 'added') {
+                            addMarker(doc.data());
+                        }
+                        else if (!doc) {
+                            alert('No marker data. Set the game at SetGame first');
+                            location = 'setGame.html';
+                        }
+
+                    });
+                    vm.move(0, 0)
+                })
+
+            },
+            watch: {
+                radius() {
+                    update();
+                }
+            }
+        });
+
+        // Google Maps --------------------------------------------------------
+        const gm = google.maps;
+
+        let center = new gm.LatLng(3.215000, 101.730000);
+        const sw = gm.geometry.spherical.computeOffset(center, 2000, 225);
+        const ne = gm.geometry.spherical.computeOffset(center, 2000, 45);
+        let bounds = new gm.LatLngBounds(sw, ne);
+
+        const map = new gm.Map($('#map')[0], {
+            center,
+            zoom: 17,
+            disableDefaultUI: true,
+            clickableIcons: false,
+            //  Disable gesture handling (zoom, pan, etc)
+            gestureHandling: 'none',
+            fullscreenControl: true,
+            keyboardShortcuts: false
+
+        });
+
+        const panel = $('#panel')[0];
+        map.controls[gm.ControlPosition.TOP_RIGHT].push(panel);
+
+        const status = $('#status')[0];
+        map.controls[gm.ControlPosition.TOP_LEFT].push(status);
+
+        const right = $('#circle')[0];
+        map.controls[gm.ControlPosition.BOTTOM_CENTER].push(right);
+
+        const mkcoin = $('#mkcoin')[0];
+        map.controls[gm.ControlPosition.BOTTOM_LEFT].push(mkcoin);
+
+        const info = new gm.InfoWindow({
+            content: $('#info')[0]
+        });
+
+        const circle = new gm.Circle({
+            map
+        });
+
+        let origin = null;
+
+        const player = new gm.Marker({
+            position: center,
+            map,
+            icon: { url: "", scaledSize: new gm.Size(64, 64) },
+            animation: gm.Animation.DROP
+        });
+
+        //  Calculate bounds & draw rectangle
+        function addRectangles(data) {
+            const rec = new gm.Rectangle({
+                map,
+                bounds: data.bounds,
+                strokeColor: data.color,
+                fillColor: data.color,
+                strokeWeight: 10,
+                fillOpcacity: 0
+            })
+            bounds = rec.getBounds();
+            center = rec.getBounds().getCenter();
+            map.setCenter(center);
+            player.setPosition(center);
+        }
+
+        gm.event.addListenerOnce(map, 'bounds_changed', e => {
+            message('Collect coins to Up Level!', 4000);
+        });
+
+
+        function addMarker(data) {
+            let m = new gm.Marker({
+                map,
+                position: data.position,
+                icon: { url: data.image, scaledSize: new gm.Size(50, 50) },
+                name: data.label,
+                // icon: data.image,
+                distance: 0, // Custom property
+                found: false // Custom property
+            });
+
+            if (m.name == 'demon') {
+                vm.demons.push(m);
+            }
+            else {
+                vm.markers.push(m);
+            }
+
+        }
+
+        function update() {
+            // Complete the function
+
+            // Reset Circle
+            circle.setCenter(origin?.position);
+            circle.setRadius(vm.radius);
+
+            vm.result = [];
+
+            //Return if no origin
+            if (origin == null) return;
+
+            // Calculation
+            for (let m of vm.markers.filter(m => m != origin)) {
+                let p1 = origin.position;
+                let p2 = m.position;
+                let distance = gm.geometry.spherical.computeDistanceBetween(p1, p2);
+
+
+                if (distance <= vm.radius) {
+                    if (!m.found) {
+                        m.setVisible(true);
+                        vm.result.push({ label: m.name, distance, url: m.icon.url, position: m.position });
+                    }
+                }
+                else {
+                    m.setVisible(false);
+                }
+            }
+
+        }
+
+        function message(msg, time) {
+            // map.controls[gm.ControlPosition.BOTTOM_CENTER].push(right);
+            vm.msg = msg;
+            $("#circle").show();
+            setTimeout(() => {
+                $("#circle").hide();
+                vm.msg = '';
+            }, time);
+        }
+
+    </script>
+</body>
+
+</html>
